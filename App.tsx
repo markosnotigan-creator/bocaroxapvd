@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { POSProvider, usePOS } from './store/posStore';
+import { POSProvider, usePOS } from './store/pos-store';
 import { Sidebar } from './components/Layout/Sidebar';
 import { POSPage } from './pages/POSPage';
 import { CashRegisterPage } from './pages/CashRegisterPage';
@@ -14,7 +14,7 @@ import { DeliveryPage } from './pages/DeliveryPage';
 
 const AppContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const { 
+  const {
     customers, addCustomer, updateCustomer, deleteCustomer,
     sellers, addSeller, updateSeller, deleteSeller
   } = usePOS();
@@ -27,10 +27,10 @@ const AppContent: React.FC = () => {
       case 'inventory': return <InventoryPage />;
       case 'settings': return <SettingsPage />;
       case 'reports': return <ReportsPage />;
-      
+
       // Módulos Dinâmicos
-      case 'cliente': 
-        return <ManagementPage 
+      case 'cliente':
+        return <ManagementPage
           title="Gestão de Clientes"
           items={customers}
           onAdd={addCustomer}
@@ -43,9 +43,9 @@ const AppContent: React.FC = () => {
             { name: 'address', label: 'Endereço', type: 'text', placeholder: 'Rua, Número, Bairro' }
           ]}
         />;
-      
+
       case 'vendedor':
-        return <ManagementPage 
+        return <ManagementPage
           title="Equipe de Vendas"
           items={sellers}
           onAdd={addSeller}
