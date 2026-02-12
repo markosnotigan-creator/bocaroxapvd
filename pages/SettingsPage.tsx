@@ -207,6 +207,16 @@ export const SettingsPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Dados Brutos (Raw Data) - Debug</label>
+                <textarea
+                  readOnly
+                  value={rawScaleData}
+                  className="w-full h-20 p-2 text-xs font-mono bg-black text-emerald-500 rounded-xl"
+                  placeholder="Os dados recebidos da porta serial aparecerão aqui..."
+                />
+              </div>
             </div>
           )}
         </section>

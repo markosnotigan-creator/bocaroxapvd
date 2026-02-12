@@ -63,7 +63,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
         <div className="flex items-center gap-4 text-[10px] font-bold text-zinc-500">
           <span className="flex items-center gap-1"><LayoutGrid size={12} /> BOCA ROXA POS</span>
           <span>{currentDate} {currentTime}</span>
-          <span className="text-zinc-600">v 2.5.1</span>
+          <span className="text-zinc-600">v 2.5.2</span>
         </div>
         <div className="flex gap-4">
           <div className="flex gap-1">

@@ -45,29 +45,31 @@ export class ScaleService {
             // Passa o dado cru para debug na tela de configurações
             onData(-1, chunk);
 
-            // Processamento do Protocolo Toledo Prix 3
-            // O protocolo geralmente envia STX (0x02) + PESO + ETX (0x03)
-            // Exemplo de string: [STX]00.500[ETX] ou apenas números seguidos de CR
-
-            // 1. Limpa o buffer se ficar muito grande (evita vazamento de memória)
-            if (this.buffer.length > 50) {
-              this.buffer = this.buffer.slice(-50);
+            // 1. Limpeza preventiva do buffer (50 chars é muito pouco para alguns protocolos rapidos)
+            if (this.buffer.length > 200) {
+              this.buffer = this.buffer.slice(-100);
             }
 
-            // 2. Tenta encontrar um padrão de peso válido (X.XXX)
-            // Regex procura por STX (opcional), seguido de dígitos e ponto
-            const match = this.buffer.match(/(\d{1,3}\.\d{3})/);
+            // 2. Tenta encontrar um padrão de peso válido (X.XXX ou X,XXX)
+            // Regex melhorada:
+            // - Aceita ponto ou vírgula
+            // - Opcional: STX (\x02) ou caracteres de controle antes
+            // - Captura grupos de digitos
+            const match = this.buffer.match(/(\d{1,3}[.,]\d{3})/);
 
             if (match) {
-              const weightStr = match[1];
+              // Normaliza para ponto flutuante JS (troca vírgula por ponto)
+              const weightStr = match[1].replace(',', '.');
               const weight = parseFloat(weightStr);
 
               if (!isNaN(weight)) {
                 onData(weight, undefined);
-                // Limpa o buffer após leitura com sucesso para evitar ler o mesmo dado
-                // Mantém apenas o finalzinho caso tenha cortado o próximo pacote
-                const lastIndex = this.buffer.lastIndexOf(weightStr);
-                this.buffer = this.buffer.substring(lastIndex + weightStr.length);
+
+                // Limpa o buffer até o final do peso encontrado para processar o próximo
+                const lastIndex = this.buffer.lastIndexOf(match[1]);
+                if (lastIndex !== -1) {
+                  this.buffer = this.buffer.substring(lastIndex + match[1].length);
+                }
               }
             }
           }
