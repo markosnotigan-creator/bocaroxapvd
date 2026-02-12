@@ -80,6 +80,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
           <LogOut size={20} />
           <span className="font-bold text-sm">Sair</span>
         </button>
+        <div className="px-5 py-2 text-xs font-medium text-slate-400 dark:text-slate-600 text-center">
+          v2.5.3
+        </div>
       </div>
     </div>
   );
