@@ -5,7 +5,7 @@ export class ScaleService {
   private keepReading: boolean = false;
   private buffer: string = '';
 
-  async connect(onData: (weight: number, rawData?: string) => void): Promise<boolean> {
+  async connect(onData: (weight: number, rawData?: string) => void, options?: { baudRate?: number }): Promise<boolean> {
     try {
       if (!('serial' in navigator)) {
         alert('Web Serial API não suportada neste navegador. Use Chrome, Edge ou Opera.');
@@ -14,10 +14,10 @@ export class ScaleService {
 
       // @ts-ignore
       this.port = await navigator.serial.requestPort();
-      
-      // Toledo Prix 3 geralmente usa 9600 ou 4800, 8N1.
-      await this.port.open({ baudRate: 9600, dataBits: 8, stopBits: 1, parity: 'none' });
-      
+
+      const baudRate = options?.baudRate || 9600;
+      await this.port.open({ baudRate, dataBits: 8, stopBits: 1, parity: 'none' });
+
       this.keepReading = true;
       this.readLoop(onData);
       return true;
@@ -29,26 +29,26 @@ export class ScaleService {
 
   private async readLoop(onData: (weight: number, rawData?: string) => void) {
     const textDecoder = new TextDecoder();
-    
+
     while (this.port?.readable && this.keepReading) {
       try {
         this.reader = this.port.readable.getReader();
-        
+
         while (true) {
           const { value, done } = await this.reader.read();
           if (done) break;
-          
+
           if (value) {
             const chunk = textDecoder.decode(value);
             this.buffer += chunk;
-            
+
             // Passa o dado cru para debug na tela de configurações
             onData(-1, chunk);
 
             // Processamento do Protocolo Toledo Prix 3
             // O protocolo geralmente envia STX (0x02) + PESO + ETX (0x03)
             // Exemplo de string: [STX]00.500[ETX] ou apenas números seguidos de CR
-            
+
             // 1. Limpa o buffer se ficar muito grande (evita vazamento de memória)
             if (this.buffer.length > 50) {
               this.buffer = this.buffer.slice(-50);
@@ -57,11 +57,11 @@ export class ScaleService {
             // 2. Tenta encontrar um padrão de peso válido (X.XXX)
             // Regex procura por STX (opcional), seguido de dígitos e ponto
             const match = this.buffer.match(/(\d{1,3}\.\d{3})/);
-            
+
             if (match) {
               const weightStr = match[1];
               const weight = parseFloat(weightStr);
-              
+
               if (!isNaN(weight)) {
                 onData(weight, undefined);
                 // Limpa o buffer após leitura com sucesso para evitar ler o mesmo dado
@@ -74,7 +74,7 @@ export class ScaleService {
         }
       } catch (error) {
         console.error('Erro na leitura da serial:', error);
-        break; 
+        break;
       } finally {
         if (this.reader) {
           this.reader.releaseLock();

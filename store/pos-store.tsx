@@ -1,9 +1,10 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { 
-  Product, CartItem, ProductType, ScaleConfig, ScaleMode, 
+import {
+  Product, CartItem, ProductType, ScaleConfig, ScaleMode,
   CashRegister, Sale, PaymentMethod, ReceiptConfig, SecurityConfig, DeliveryConfig,
-  Customer, Seller, Table, DeliveryOrder, ScaleStatus
+  Customer, Seller, Table, DeliveryOrder, ScaleStatus,
+  DashboardConfig, DashboardCardConfig
 } from '../types';
 import { INITIAL_PRODUCTS } from '../constants';
 import { dbService } from '../services/dbService';
@@ -24,10 +25,11 @@ interface POSContextType {
   receiptConfig: ReceiptConfig;
   securityConfig: SecurityConfig;
   deliveryConfig: DeliveryConfig;
+  dashboardConfig: DashboardConfig;
   cashRegister: CashRegister | null;
   sales: Sale[];
   isDarkMode: boolean;
-  
+
   // Actions
   addProduct: (product: Omit<Product, 'id'>) => void;
   updateProduct: (product: Product) => void;
@@ -55,6 +57,7 @@ interface POSContextType {
   updateReceiptConfig: (config: Partial<ReceiptConfig>) => void;
   updateSecurityConfig: (config: Partial<SecurityConfig>) => void;
   updateDeliveryConfig: (config: Partial<DeliveryConfig>) => void;
+  updateDashboardConfig: (config: Partial<DashboardConfig>) => void;
   openRegister: (amount: number) => void;
   closeRegister: () => void;
   processSale: (payments: { method: PaymentMethod, amount: number }[]) => Sale | null;
@@ -75,7 +78,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [currentSellerId, setCurrentSellerId] = useState<string | null>(localStorage.getItem('br_active_seller'));
   const [cart, setCart] = useState<CartItem[]>([]);
-  
+
   // Balança
   const [currentWeight, setCurrentWeight] = useState<number>(0);
   const [scaleConfig, setScaleConfig] = useState<ScaleConfig>({ mode: ScaleMode.MANUAL });
@@ -83,7 +86,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [rawScaleData, setRawScaleData] = useState<string>('');
 
   const [isDarkMode, setIsDarkMode] = useState<boolean>(localStorage.getItem('br_theme') === 'dark');
-  
+
   const [receiptConfig, setReceiptConfig] = useState<ReceiptConfig>({
     storeName: 'Boca Roxa Açaí',
     address: 'Rua do Açaí, 123 - Centro',
@@ -104,33 +107,67 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     whatsappUrl: 'https://wa.me/5585988504361'
   });
 
+  const [dashboardConfig, setDashboardConfig] = useState<DashboardConfig>({
+    cards: [
+      { id: 'delivery', label: 'DELIVERY / WHATSAPP', visible: true },
+      { id: 'mesas', label: 'MESAS', visible: true },
+      { id: 'comandas', label: 'COMANDAS', visible: true },
+      { id: 'creditos', label: 'CREDITO / ADIANT.', visible: true },
+      { id: 'atendimentos', label: 'ATENDIMENTOS', visible: true },
+      { id: 'reports', label: 'ULTIMAS VENDAS', visible: true },
+      { id: 'refunds', label: 'DEVOLUÇÃO', visible: true },
+    ]
+  });
+
   // Carregamento Inicial via dbService
   useEffect(() => {
     const loadData = async () => {
-      const p = await dbService.getAll('products');
-      setProducts(p.length > 0 ? p : INITIAL_PRODUCTS);
-      setCustomers(await dbService.getAll('customers'));
-      setSellers(await dbService.getAll('sellers'));
-      setTables(await dbService.getAll('tables'));
-      setDeliveryOrders(await dbService.getAll('delivery'));
-      setSales(await dbService.getAll('sales'));
-      
-      const savedRegister = await dbService.getAll('register');
-      if (savedRegister && !Array.isArray(savedRegister)) setCashRegister(savedRegister);
-      
-      const savedReceipt = localStorage.getItem('br_receipt_config');
-      if (savedReceipt) setReceiptConfig(JSON.parse(savedReceipt));
+      try {
+        const p = await dbService.getAll('products');
+        setProducts(p.length > 0 ? p : INITIAL_PRODUCTS);
+        setCustomers(await dbService.getAll('customers'));
+        setSellers(await dbService.getAll('sellers'));
+        setTables(await dbService.getAll('tables'));
+        setDeliveryOrders(await dbService.getAll('delivery_orders'));
 
-      const savedSecurity = localStorage.getItem('br_security_config');
-      if (savedSecurity) setSecurityConfig(JSON.parse(savedSecurity));
-      
-      const savedDelivery = localStorage.getItem('br_delivery_config');
-      if (savedDelivery) setDeliveryConfig(JSON.parse(savedDelivery));
+        // Carrega vendas e itens separadamente e junta-os
+        const rawSales = await dbService.getAll('sales');
+        const allItems = await dbService.getAll('sale_items');
 
-      const savedScale = localStorage.getItem('br_scale_config');
-      if (savedScale) setScaleConfig(JSON.parse(savedScale));
+        const mappedSales = rawSales.map((sale: any) => ({
+          ...sale,
+          items: allItems.filter((item: any) => item.saleId === sale.id)
+        }));
+        setSales(mappedSales);
 
-      document.documentElement.classList.toggle('dark', isDarkMode);
+        const savedRegister = await dbService.getAll('cash_registers');
+        if (savedRegister && !Array.isArray(savedRegister)) {
+          setCashRegister(savedRegister);
+        } else if (Array.isArray(savedRegister) && savedRegister.length > 0) {
+          // No Supabase, se pedirmos 'register', ele volta array
+          // Pegamos o registro que estiver aberto ou o mais recente
+          setCashRegister(savedRegister.find(r => r.status === 'open') || savedRegister[0]);
+        }
+
+        const savedReceipt = localStorage.getItem('br_receipt_config');
+        if (savedReceipt) setReceiptConfig(JSON.parse(savedReceipt));
+
+        const savedSecurity = localStorage.getItem('br_security_config');
+        if (savedSecurity) setSecurityConfig(JSON.parse(savedSecurity));
+
+        const savedDelivery = localStorage.getItem('br_delivery_config');
+        if (savedDelivery) setDeliveryConfig(JSON.parse(savedDelivery));
+
+        const savedDashboard = localStorage.getItem('br_dashboard_config');
+        if (savedDashboard) setDashboardConfig(JSON.parse(savedDashboard));
+
+        const savedScale = localStorage.getItem('br_scale_config');
+        if (savedScale) setScaleConfig(JSON.parse(savedScale));
+
+        document.documentElement.classList.toggle('dark', isDarkMode);
+      } catch (err) {
+        console.error("Erro ao carregar dados:", err);
+      }
     };
     loadData();
   }, []);
@@ -140,25 +177,89 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => { dbService.saveAll('customers', customers); }, [customers]);
   useEffect(() => { dbService.saveAll('sellers', sellers); }, [sellers]);
   useEffect(() => { dbService.saveAll('tables', tables); }, [tables]);
-  useEffect(() => { dbService.saveAll('delivery', deliveryOrders); }, [deliveryOrders]);
-  useEffect(() => { dbService.saveAll('sales', sales); }, [sales]);
-  useEffect(() => { if (cashRegister) dbService.saveAll('register', [cashRegister] as any); }, [cashRegister]);
+  useEffect(() => {
+    if (deliveryOrders.length > 0) {
+      dbService.saveAll('delivery_orders', deliveryOrders.map(d => ({
+        id: d.id,
+        customerName: d.customerName,
+        address: d.address,
+        items: d.items,
+        total: d.total,
+        status: d.status,
+        timestamp: new Date(d.timestamp).toISOString()
+      })));
+    }
+  }, [deliveryOrders]);
+  useEffect(() => {
+    if (sales.length > 0) {
+      dbService.saveAll('sales', sales.map(s => ({
+        id: s.id,
+        timestamp: new Date(s.timestamp).toISOString(),
+        totalAmount: s.totalAmount,
+        change: s.change,
+        status: s.status,
+        sellerId: s.sellerId,
+        sellerName: s.sellerName
+      })));
+    }
+    // Persiste os itens de venda separadamente para o Supabase
+    const allItems = sales.flatMap(s => s.items.map(item => ({
+      ...item,
+      saleId: s.id,
+      observations: item.addons && item.addons.length > 0
+        ? `${item.observations || ''} [Adicionais: ${item.addons.map((a: any) => a.name).join(', ')}]`.trim()
+        : item.observations
+    })));
+    if (allItems.length > 0) dbService.saveAll('sale_items', allItems.map(item => ({
+      id: item.id,
+      saleId: item.saleId,
+      productId: item.productId,
+      name: item.name,
+      price: item.price,
+      type: item.type,
+      quantity: item.quantity,
+      total: item.total,
+      observations: item.observations
+    })));
+  }, [sales]);
+  useEffect(() => {
+    if (cashRegister) {
+      dbService.saveAll('cash_registers', [{
+        id: cashRegister.id,
+        status: cashRegister.status,
+        openingBalance: cashRegister.openingBalance,
+        currentBalance: cashRegister.currentBalance,
+        openedAt: new Date(cashRegister.openedAt).toISOString(),
+        closedAt: cashRegister.closedAt ? new Date(cashRegister.closedAt).toISOString() : null
+      }]);
+      // Persiste as entradas do caixa separadamente
+      const allEntries = cashRegister.entries.map(entry => ({
+        id: (entry as any).id || crypto.randomUUID(),
+        registerId: cashRegister.id,
+        type: entry.type,
+        amount: entry.amount,
+        description: entry.description,
+        timestamp: new Date(entry.timestamp).toISOString()
+      }));
+      if (allEntries.length > 0) dbService.saveAll('register_entries', allEntries);
+    }
+  }, [cashRegister]);
 
-  const addProduct = (p: Omit<Product, 'id'>) => setProducts(prev => [...prev, { ...p, id: Math.random().toString(36).substr(2, 9) }]);
+  const addProduct = (p: Omit<Product, 'id'>) => setProducts(prev => [...prev, { ...p, id: crypto.randomUUID() }]);
   const updateProduct = (p: Product) => setProducts(prev => prev.map(x => x.id === p.id ? p : x));
   const deleteProduct = (id: string) => setProducts(prev => prev.filter(x => x.id !== id));
 
-  const addCustomer = (c: Omit<Customer, 'id'>) => setCustomers(prev => [...prev, { ...c, id: Math.random().toString(36).substr(2, 9) }]);
+  const addCustomer = (c: Omit<Customer, 'id'>) => setCustomers(prev => [...prev, { ...c, id: crypto.randomUUID() }]);
   const updateCustomer = (c: Customer) => setCustomers(prev => prev.map(x => x.id === c.id ? c : x));
   const deleteCustomer = (id: string) => setCustomers(prev => prev.filter(x => x.id !== id));
 
-  const addSeller = (s: Omit<Seller, 'id'>) => setSellers(prev => [...prev, { ...s, id: Math.random().toString(36).substr(2, 9) }]);
+  const addSeller = (s: Omit<Seller, 'id'>) => setSellers(prev => [...prev, { ...s, id: crypto.randomUUID() }]);
   const updateSeller = (s: Seller) => setSellers(prev => prev.map(x => x.id === s.id ? s : x));
   const deleteSeller = (id: string) => setSellers(prev => prev.filter(x => x.id !== id));
 
   const updateTable = (t: Table) => setTables(prev => prev.map(x => x.id === t.id ? t : x));
 
-  const addDelivery = (d: Omit<DeliveryOrder, 'id' | 'timestamp'>) => setDeliveryOrders(prev => [{ ...d, id: Date.now().toString(), timestamp: Date.now() }, ...prev]);
+  const addDelivery = (d: Omit<DeliveryOrder, 'id' | 'timestamp'>) => setDeliveryOrders(prev => [{ ...d, id: crypto.randomUUID(), timestamp: Date.now() }, ...prev]);
   const updateDelivery = (d: DeliveryOrder) => setDeliveryOrders(prev => prev.map(x => x.id === d.id ? d : x));
   const deleteDelivery = (id: string) => setDeliveryOrders(prev => prev.filter(x => x.id !== id));
 
@@ -173,12 +274,12 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addToCart = useCallback((product: Product, quantity: number = 1, addons: any[] = [], observations: string = '') => {
     const itemTotal = (product.price * quantity) + addons.reduce((acc, a) => acc + a.price, 0);
-    setCart(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), productId: product.id, name: product.name, price: product.price, type: product.type, quantity, addons, observations, total: itemTotal }]);
+    setCart(prev => [...prev, { id: crypto.randomUUID(), productId: product.id, name: product.name, price: product.price, type: product.type, quantity, addons, observations, total: itemTotal }]);
   }, []);
 
   const removeFromCart = (index: number) => setCart(prev => prev.filter((_, i) => i !== index));
   const clearCart = () => setCart([]);
-  
+
   const updateScaleConfig = (c: Partial<ScaleConfig>) => {
     setScaleConfig(prev => {
       const newVal = { ...prev, ...c };
@@ -196,7 +297,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (weight !== -1) {
         setCurrentWeight(weight);
       }
-    });
+    }, { baudRate: scaleConfig.baudRate });
 
     if (success) {
       setScaleStatus('connected');
@@ -209,7 +310,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await scaleService.disconnect();
     setScaleStatus('disconnected');
   };
-  
+
   const updateReceiptConfig = (c: Partial<ReceiptConfig>) => {
     setReceiptConfig(prev => {
       const newVal = { ...prev, ...c };
@@ -234,25 +335,33 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const openRegister = (amount: number) => setCashRegister({ id: Date.now().toString(), openedAt: Date.now(), openingBalance: amount, currentBalance: amount, status: 'open', entries: [] });
+  const updateDashboardConfig = (c: Partial<DashboardConfig>) => {
+    setDashboardConfig(prev => {
+      const newVal = { ...prev, ...c };
+      localStorage.setItem('br_dashboard_config', JSON.stringify(newVal));
+      return newVal;
+    });
+  };
+
+  const openRegister = (amount: number) => setCashRegister({ id: crypto.randomUUID(), openedAt: Date.now(), openingBalance: amount, currentBalance: amount, status: 'open', entries: [] });
   const closeRegister = () => setCashRegister(prev => prev ? { ...prev, status: 'closed', closedAt: Date.now() } : null);
 
   const processSale = (payments: { method: PaymentMethod, amount: number }[]) => {
     const totalAmount = cart.reduce((acc, item) => acc + item.total, 0);
     const activeSeller = sellers.find(s => s.id === currentSellerId);
-    const sale: Sale = { 
-      id: 'SALE-' + Math.random().toString(36).substr(2, 6).toUpperCase(), 
-      timestamp: Date.now(), 
-      items: [...cart], 
-      totalAmount, 
-      payments, 
-      change: Math.max(0, payments.reduce((acc, p) => acc + p.amount, 0) - totalAmount), 
+    const sale: Sale = {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      items: [...cart],
+      totalAmount,
+      payments,
+      change: Math.max(0, payments.reduce((acc, p) => acc + p.amount, 0) - totalAmount),
       status: 'completed',
       sellerId: currentSellerId || undefined,
       sellerName: activeSeller?.name || 'Geral'
     };
     setSales(prev => [sale, ...prev]);
-    if (cashRegister) setCashRegister(prev => prev ? { ...prev, currentBalance: prev.currentBalance + totalAmount, entries: [...prev.entries, { type: 'sale', amount: totalAmount, description: `Venda ${sale.id}`, timestamp: Date.now() }] } : null);
+    if (cashRegister) setCashRegister(prev => prev ? { ...prev, currentBalance: prev.currentBalance + totalAmount, entries: [...prev.entries, { id: crypto.randomUUID(), type: 'sale', amount: totalAmount, description: `Venda ${sale.id}`, timestamp: Date.now() }] } : null);
     clearCart();
     return sale;
   };
@@ -260,7 +369,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Função para confirmar e pagar Delivery
   const confirmDeliveryOrder = (order: DeliveryOrder, paymentMethod: PaymentMethod) => {
     const sale: Sale = {
-      id: 'DEL-' + Math.random().toString(36).substr(2, 6).toUpperCase(),
+      id: crypto.randomUUID(),
       timestamp: Date.now(),
       items: [{
         id: 'del-item',
@@ -281,18 +390,18 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 1. Adiciona Venda
     setSales(prev => [sale, ...prev]);
-    
+
     // 2. Adiciona ao Caixa
     if (cashRegister) {
-      setCashRegister(prev => prev ? { 
-        ...prev, 
-        currentBalance: prev.currentBalance + order.total, 
-        entries: [...prev.entries, { 
-          type: 'sale', 
-          amount: order.total, 
-          description: `Delivery ${order.customerName}`, 
-          timestamp: Date.now() 
-        }] 
+      setCashRegister(prev => prev ? {
+        ...prev,
+        currentBalance: prev.currentBalance + order.total,
+        entries: [...prev.entries, {
+          type: 'sale',
+          amount: order.total,
+          description: `Delivery ${order.customerName}`,
+          timestamp: Date.now()
+        }]
       } : null);
     }
 
@@ -305,7 +414,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const refundSale = (saleId: string, reason: string) => setSales(prev => prev.map(s => s.id === saleId ? { ...s, status: 'refunded' } : s));
-  
+
   const printReceipt = (data: Sale | DeliveryOrder, isDeliveryOrder = false) => {
     const printWindow = window.open('', '_blank', 'width=300,height=600');
     if (!printWindow) return;
@@ -366,13 +475,13 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   return (
     <POSContext.Provider value={{
-      products, customers, sellers, currentSellerId, tables, deliveryOrders, cart, currentWeight, 
-      scaleConfig, scaleStatus, rawScaleData, receiptConfig, securityConfig, deliveryConfig, cashRegister, sales, isDarkMode,
+      products, customers, sellers, currentSellerId, tables, deliveryOrders, cart, currentWeight,
+      scaleConfig, scaleStatus, rawScaleData, receiptConfig, securityConfig, deliveryConfig, dashboardConfig, cashRegister, sales, isDarkMode,
       addProduct, updateProduct, deleteProduct, addCustomer, updateCustomer, deleteCustomer,
       addSeller, updateSeller, deleteSeller, setCurrentSellerId, updateTable, addDelivery, updateDelivery, deleteDelivery,
       confirmDeliveryOrder,
       toggleDarkMode, addToCart, removeFromCart, clearCart, setCurrentWeight, updateScaleConfig, connectToScale, disconnectScale,
-      updateReceiptConfig, updateSecurityConfig, updateDeliveryConfig,
+      updateReceiptConfig, updateSecurityConfig, updateDeliveryConfig, updateDashboardConfig,
       openRegister, closeRegister, processSale, refundSale, printReceipt
     }}>
       {children}

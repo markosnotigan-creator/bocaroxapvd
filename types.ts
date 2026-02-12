@@ -66,7 +66,7 @@ export interface CartItem {
   name: string;
   price: number;
   type: ProductType;
-  quantity: number; 
+  quantity: number;
   addons: Addon[];
   observations?: string;
   total: number;
@@ -99,6 +99,16 @@ export interface ScaleConfig {
   mode: ScaleMode;
   comPort?: string;
   baudRate?: number;
+}
+
+export interface DashboardCardConfig {
+  id: string;
+  label: string;
+  visible: boolean;
+}
+
+export interface DashboardConfig {
+  cards: DashboardCardConfig[];
 }
 
 export type ScaleStatus = 'disconnected' | 'connecting' | 'connected' | 'error';

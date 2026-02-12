@@ -22,22 +22,31 @@ interface DashboardPageProps {
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
-  const { deliveryOrders, deliveryConfig } = usePOS();
+  const { deliveryOrders, deliveryConfig, dashboardConfig } = usePOS();
   const currentTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   const currentDate = new Date().toLocaleDateString('pt-BR');
 
   // Conta pedidos pendentes para o alerta
   const pendingDeliveryCount = deliveryOrders.filter(o => o.status === 'pending').length;
 
-  const rightMenuItems = [
-    { id: 'delivery', label: 'DELIVERY / WHATSAPP', icon: Truck, color: 'bg-blue-600 hover:bg-blue-700' },
-    { id: 'mesas', label: 'MESAS', icon: Coffee, color: 'bg-emerald-500 hover:bg-emerald-600' },
-    { id: 'comandas', label: 'COMANDAS', icon: LayoutGrid, color: 'bg-cyan-500 hover:bg-cyan-600' },
-    { id: 'creditos', label: 'CREDITO / ADIANT.', icon: CreditCard, color: 'bg-teal-400 hover:bg-teal-500' },
-    { id: 'atendimentos', label: 'ATENDIMENTOS', icon: Clock, color: 'bg-zinc-700 hover:bg-zinc-800' },
-    { id: 'reports', label: 'ULTIMAS VENDAS', icon: History, color: 'bg-purple-600 hover:bg-purple-700' },
-    { id: 'refunds', label: 'DEVOLUÇÃO', icon: RefreshCcw, color: 'bg-rose-500 hover:bg-rose-600' },
-  ];
+  // Mapeamento de Ícones e Cores fixos para os IDs
+  const cardResources: Record<string, { icon: any, color: string }> = {
+    delivery: { icon: Truck, color: 'bg-blue-600 hover:bg-blue-700' },
+    mesas: { icon: Coffee, color: 'bg-emerald-500 hover:bg-emerald-600' },
+    comandas: { icon: LayoutGrid, color: 'bg-cyan-500 hover:bg-cyan-600' },
+    creditos: { icon: CreditCard, color: 'bg-teal-400 hover:bg-teal-500' },
+    atendimentos: { icon: Clock, color: 'bg-zinc-700 hover:bg-zinc-800' },
+    reports: { icon: History, color: 'bg-purple-600 hover:bg-purple-700' },
+    refunds: { icon: RefreshCcw, color: 'bg-rose-500 hover:bg-rose-600' },
+  };
+
+  const rightMenuItems = dashboardConfig.cards
+    .filter(card => card.visible)
+    .map(card => ({
+      ...card,
+      icon: cardResources[card.id]?.icon || LayoutGrid,
+      color: cardResources[card.id]?.color || 'bg-zinc-600 hover:bg-zinc-700'
+    }));
 
   const handleMenuClick = (id: string) => {
     if (id === 'delivery') {
@@ -103,7 +112,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
           </button>
         </div>
 
-        <div className="col-span-12 md:col-span-4 flex flex-col gap-2 overflow-y-auto pr-2 custom-scrollbar">
+        <div className="col-span-12 md:col-span-4 flex flex-col gap-3 h-full pb-2">
           {rightMenuItems.map((item) => {
             const Icon = item.icon;
             const isDelivery = item.id === 'delivery';
@@ -113,18 +122,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
               <button
                 key={item.id}
                 onClick={() => handleMenuClick(item.id)}
-                className={`relative flex items-center gap-4 p-4 rounded-xl transition-all shadow-md group ${item.color} ${hasAlert ? 'animate-pulse ring-2 ring-white' : ''}`}
+                className={`relative flex-1 flex items-center gap-4 p-4 rounded-xl transition-all shadow-md group ${item.color} ${hasAlert ? 'animate-pulse ring-2 ring-white font-black' : ''}`}
               >
-                <div className="w-10 h-10 flex items-center justify-center bg-black/10 rounded-lg">
-                  {isDelivery ? <MessageCircle size={24} className="group-hover:scale-110 transition-transform" /> : <Icon size={24} className="group-hover:scale-110 transition-transform" />}
+                <div className="w-10 h-10 flex items-center justify-center bg-black/10 rounded-lg shrink-0">
+                  {isDelivery ? <MessageCircle size={22} className="group-hover:scale-110 transition-transform" /> : <Icon size={22} className="group-hover:scale-110 transition-transform" />}
                 </div>
-                <span className="font-black text-sm tracking-widest flex-1 text-left flex items-center gap-2">
+                <span className="font-black text-xs lg:text-sm tracking-widest flex-1 text-left uppercase">
                   {item.label}
                 </span>
 
                 {/* Alerta de Pedidos Pendentes */}
                 {hasAlert && (
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-rose-600 text-white px-3 py-1 rounded-full flex items-center gap-2 shadow-lg animate-bounce border-2 border-white">
+                  <div className="bg-rose-600 text-white px-3 py-1 rounded-full flex items-center gap-2 shadow-lg animate-bounce border-2 border-white shrink-0">
                     <Bell size={12} fill="currentColor" />
                     <span className="text-xs font-black">{pendingDeliveryCount}</span>
                   </div>

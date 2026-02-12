@@ -11,6 +11,7 @@ export const SettingsPage: React.FC = () => {
     scaleConfig, updateScaleConfig, scaleStatus, connectToScale, rawScaleData, currentWeight,
     receiptConfig, updateReceiptConfig, securityConfig, updateSecurityConfig,
     deliveryConfig, updateDeliveryConfig,
+    dashboardConfig, updateDashboardConfig,
     isDarkMode, toggleDarkMode
   } = usePOS();
 
@@ -21,6 +22,8 @@ export const SettingsPage: React.FC = () => {
 
   const [dbSource, setDbSource] = useState<DBSource>(dbService.getConfig().source);
   const [apiUrl, setApiUrl] = useState(dbService.getConfig().apiUrl || '');
+  const [apiKey, setApiKey] = useState(dbService.getConfig().apiKey || '');
+  const [profile, setProfile] = useState(dbService.getConfig().profile || 'default');
 
   // Local state for security form to avoid constant re-renders/saves
   const [localSecurity, setLocalSecurity] = useState(securityConfig);
@@ -55,8 +58,13 @@ export const SettingsPage: React.FC = () => {
   };
 
   const handleSaveDB = () => {
-    dbService.updateConfig({ source: dbSource, apiUrl });
-    alert('Configurações de banco de dados atualizadas! O sistema irá recarregar para aplicar as mudanças.');
+    dbService.updateConfig({
+      source: dbSource,
+      apiUrl,
+      apiKey,
+      profile: profile.toLowerCase().replace(/\s+/g, '_')
+    });
+    alert('Configurações de banco de dados e perfil atualizadas! O sistema irá recarregar para aplicar as mudanças.');
     window.location.reload();
   };
 
@@ -178,11 +186,18 @@ export const SettingsPage: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-slate-200 dark:border-zinc-700">
-                  <p className="text-[10px] font-black uppercase text-slate-400 mb-2">Dados Recebidos (RAW)</p>
-                  <div className="font-mono text-xs text-slate-600 h-12 overflow-hidden whitespace-nowrap bg-slate-100 dark:bg-zinc-800 p-2 rounded-lg">
-                    {rawScaleData || 'Aguardando dados...'}
-                  </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Baud Rate (Velocidade)</label>
+                  <select
+                    value={scaleConfig.baudRate || 9600}
+                    onChange={(e) => updateScaleConfig({ baudRate: parseInt(e.target.value) })}
+                    className="w-full p-4 bg-white dark:bg-zinc-900 rounded-2xl border border-slate-200 dark:border-zinc-700 font-bold outline-none focus:ring-4 focus:ring-purple-100 dark:focus:ring-purple-900/20"
+                  >
+                    <option value={2400}>2400 bps</option>
+                    <option value={4800}>4800 bps</option>
+                    <option value={9600}>9600 bps</option>
+                    <option value={19200}>19200 bps</option>
+                  </select>
                 </div>
                 <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-slate-200 dark:border-zinc-700">
                   <p className="text-[10px] font-black uppercase text-slate-400 mb-2">Peso Interpretado</p>
@@ -236,6 +251,59 @@ export const SettingsPage: React.FC = () => {
                 Dica: Para usar um número, digite o link no formato <b>https://wa.me/5585988504361</b>
               </p>
             </div>
+          </div>
+        </section>
+
+        {/* Dashboard Customization */}
+        <section className="bg-white dark:bg-zinc-900 p-10 rounded-[2.5rem] shadow-sm border border-purple-50 dark:border-purple-900/20 space-y-8">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-sky-50 dark:bg-sky-900/30 rounded-2xl flex items-center justify-center text-sky-600 dark:text-sky-400">
+              <Monitor size={24} />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-purple-950 dark:text-white">Personalização do Painel</h2>
+              <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">Atalhos e Nomes dos Cards</p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {dashboardConfig.cards.map((card, index) => (
+              <div key={card.id} className="flex flex-col md:flex-row items-center gap-4 p-4 bg-slate-50 dark:bg-zinc-800/50 rounded-2xl border border-slate-100 dark:border-zinc-800 transition-all hover:bg-white dark:hover:bg-zinc-800">
+                <div className="flex items-center gap-4 flex-1 w-full">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${card.visible ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-400'}`}>
+                    <Check size={20} className={card.visible ? 'opacity-100' : 'opacity-0'} />
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nome do Botão</label>
+                    <input
+                      type="text"
+                      value={card.label}
+                      onChange={(e) => {
+                        const newCards = [...dashboardConfig.cards];
+                        newCards[index] = { ...card, label: e.target.value.toUpperCase() };
+                        updateDashboardConfig({ cards: newCards });
+                      }}
+                      className="w-full bg-transparent border-none font-black text-purple-900 dark:text-white focus:ring-0 p-0"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className={`text-[10px] font-black uppercase tracking-wider ${card.visible ? 'text-emerald-500' : 'text-slate-400'}`}>
+                    {card.visible ? 'Visível' : 'Oculto'}
+                  </span>
+                  <button
+                    onClick={() => {
+                      const newCards = [...dashboardConfig.cards];
+                      newCards[index] = { ...card, visible: !card.visible };
+                      updateDashboardConfig({ cards: newCards });
+                    }}
+                    className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${card.visible ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                  >
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${card.visible ? 'right-1' : 'left-1'}`}></div>
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -367,21 +435,69 @@ export const SettingsPage: React.FC = () => {
             </button>
           </div>
 
-          {dbSource === DBSource.CLOUD && (
-            <div className="p-6 bg-blue-50/50 dark:bg-blue-900/10 rounded-3xl border border-blue-100 dark:border-blue-900/30 space-y-4 animate-in zoom-in-95">
+          {dbSource === DBSource.LOCAL && (
+            <div className="p-6 bg-purple-50/50 dark:bg-purple-900/10 rounded-3xl border border-purple-100 dark:border-purple-900/30 space-y-4 animate-in zoom-in-95">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest ml-1">Endpoint da sua API (Base URL)</label>
-                <input
-                  type="text"
-                  placeholder="https://sua-api.com/v1"
-                  value={apiUrl}
-                  onChange={(e) => setApiUrl(e.target.value)}
-                  className="w-full p-4 bg-white dark:bg-zinc-800 rounded-2xl border-none font-bold text-blue-600 outline-none focus:ring-4 focus:ring-blue-100"
-                />
+                <label className="text-[10px] font-black text-purple-400 uppercase tracking-widest ml-1">Perfil de Armazenamento (Pasta)</label>
+                <div className="relative">
+                  <Database className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-400" size={18} />
+                  <input
+                    type="text"
+                    placeholder="Ex: Loja_Principal"
+                    value={profile}
+                    onChange={(e) => setProfile(e.target.value)}
+                    className="w-full pl-12 pr-4 py-4 bg-white dark:bg-zinc-800 rounded-2xl border-none font-bold text-purple-600 outline-none focus:ring-4 focus:ring-purple-100"
+                  />
+                </div>
+                <p className="text-[10px] text-purple-400 font-bold italic">Mude o nome do perfil para simular "outra pasta" e isolar os dados.</p>
               </div>
-              <p className="text-[10px] text-blue-400 font-bold italic">O sistema enviará requisições JSON para este endereço seguindo os endpoints: /products, /sales, /customers, etc.</p>
             </div>
           )}
+
+          {dbSource === DBSource.CLOUD && (
+            <div className="p-6 bg-blue-50/50 dark:bg-blue-900/10 rounded-3xl border border-blue-100 dark:border-blue-900/30 space-y-4 animate-in zoom-in-95">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest ml-1">Endpoint da sua API (Base URL)</label>
+                  <input
+                    type="text"
+                    placeholder="https://sua-api.com/v1"
+                    value={apiUrl}
+                    onChange={(e) => setApiUrl(e.target.value)}
+                    className="w-full p-4 bg-white dark:bg-zinc-800 rounded-2xl border-none font-bold text-blue-600 outline-none focus:ring-4 focus:ring-blue-100"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest ml-1">Chave de API (Anon Key)</label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-400" size={18} />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Sua chave secreta do Supabase"
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      className="w-full pl-12 pr-12 py-4 bg-white dark:bg-zinc-800 rounded-2xl border-none font-bold text-blue-600 outline-none focus:ring-4 focus:ring-blue-100"
+                    />
+                    <button
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[10px] text-blue-400 font-bold italic">O sistema aplicará as configurações e tentará sincronizar com o Supabase.</p>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-rose-50 dark:bg-rose-900/10 p-4 rounded-2xl border border-rose-100 dark:border-rose-900/30 flex items-start gap-3">
+            <Shield className="text-rose-500 shrink-0 mt-0.5" size={16} />
+            <div>
+              <p className="text-[11px] font-black text-rose-700 dark:text-rose-400 uppercase tracking-wider">Segurança Ativa</p>
+              <p className="text-[10px] text-rose-600 dark:text-rose-500 font-bold">O Filtro Anti-Ataque (XSS) está monitorando todas as entradas de dados. Scripts maliciosos serão bloqueados automaticamente.</p>
+            </div>
+          </div>
 
           <div className="flex justify-end">
             <Button variant="success" onClick={handleSaveDB}>
